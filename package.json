@@ -7,6 +7,10 @@
   "scripts": {
     "start": "node server.js"
   },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.22",
+    "qrcode": "^1.5.4"
+  },
   "engines": {
     "node": ">=20.12"
   }

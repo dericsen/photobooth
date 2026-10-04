@@ -324,6 +324,7 @@
       upd();
       $('#done-actions').classList.remove('hidden');
       $('#btn-retry').classList.add('hidden'); $('#btn-edit-phone').classList.add('hidden');
+      $('#btn-scanwa').classList.add('hidden');
       clearInterval(state.resetTimer);
       state.resetTimer = setInterval(() => { left--; if (left <= 0) resetAll(); else upd(); }, 1000);
     } catch (e) {
@@ -332,6 +333,8 @@
       $('#done-text').textContent = e.message;
       $('#done-actions').classList.remove('hidden');
       $('#btn-retry').classList.remove('hidden'); $('#btn-edit-phone').classList.remove('hidden');
+      // Kalau penyebabnya WhatsApp belum login, tawarkan tombol ke halaman scan QR
+      $('#btn-scanwa').classList.toggle('hidden', !/scanwa|belum login|belum siap/i.test(e.message));
     }
   }
 
@@ -374,6 +377,24 @@
     });
   }
 
+  // Pantau koneksi WhatsApp Web, tampilkan banner di layar awal kalau belum siap
+  function watchWaStatus() {
+    const banner = $('#wa-banner');
+    const check = async () => {
+      try {
+        const s = await (await fetch('/api/wa/status', { cache: 'no-store' })).json();
+        const problem = s.enabled && s.state !== 'connected';
+        const onHome = $('#screen-home').classList.contains('active');
+        banner.classList.toggle('hidden', !(problem && onHome));
+        banner.textContent = s.needsInstall
+          ? '⚠️ Dependency belum terpasang — jalankan: npm install'
+          : '⚠️ WhatsApp belum tersambung — ketuk di sini untuk scan QR';
+      } catch { banner.classList.add('hidden'); }
+    };
+    check();
+    setInterval(check, 5000);
+  }
+
   function showDebug(frames) {
     const c = $('#debug-canvas'); c.classList.remove('hidden');
     const gap = 20;
@@ -400,6 +421,7 @@
     $('#event-name').textContent = CFG.eventName;
     document.title = CFG.eventName;
     bindEvents();
+    watchWaStatus();
     const list = $('#frame-list');
     for (const def of CFG.frames) {
       const card = document.createElement('div');

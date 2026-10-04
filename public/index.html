@@ -9,6 +9,11 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Peringatan kalau WhatsApp belum tersambung (hanya terlihat operator di layar awal) -->
+  <a id="wa-banner" class="wa-banner hidden" href="/scanwa">
+    ⚠️ WhatsApp belum tersambung — ketuk di sini untuk scan QR
+  </a>
+
   <!-- 1. PILIH FRAME -->
   <section id="screen-home" class="screen active">
     <h1 class="title">📸 <span id="event-name">Photobooth</span></h1>
@@ -82,6 +87,7 @@
       <h2 id="done-title" class="title small">Mengirim foto...</h2>
       <p id="done-text" class="subtitle"></p>
       <div id="done-actions" class="done-actions hidden">
+        <a id="btn-scanwa" class="btn primary hidden" href="/scanwa">Scan QR WhatsApp</a>
         <button id="btn-retry" class="btn primary">Coba lagi</button>
         <button id="btn-edit-phone" class="btn ghost">Ubah nomor</button>
         <button id="btn-finish" class="btn ghost">Selesai</button>

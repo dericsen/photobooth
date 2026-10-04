@@ -9,7 +9,7 @@ if (fs.existsSync(path.join(__dirname, '.env'))) {
 }
 
 const PORT = Number(process.env.PORT || 3000);
-const PROVIDER = (process.env.WA_PROVIDER || 'mock').toLowerCase(); // mock | fonnte | cloud
+const PROVIDER = (process.env.WA_PROVIDER || 'web').toLowerCase(); // web | mock | fonnte | cloud
 const DEFAULT_CC = process.env.DEFAULT_COUNTRY_CODE || '62';
 const CAPTION = process.env.WA_CAPTION || 'Terima kasih sudah mampir ke photobooth kami! 📸✨';
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -61,6 +61,11 @@ function timestamp() {
 
 // ---------- WhatsApp providers ----------
 const providers = {
+  // WhatsApp Web (Baileys) — login sekali dengan scan QR di halaman /scanwa
+  async web({ phone, buffer, filename }) {
+    return waWeb.sendImage({ phone, buffer, caption: CAPTION, filename });
+  },
+
   // Tidak mengirim apa-apa, hanya menyimpan file. Untuk uji coba.
   async mock({ phone, file }) {
     console.log(`[mock] pura-pura kirim ${path.basename(file)} ke ${phone}`);
@@ -127,6 +132,13 @@ if (!providers[PROVIDER]) {
   process.exit(1);
 }
 
+// Hanya load modul WhatsApp Web kalau provider ini yang dipakai
+let waWeb = null;
+if (PROVIDER === 'web') {
+  waWeb = require('./wa-web');
+  waWeb.start();
+}
+
 // ---------- Handlers ----------
 async function handleSend(req, res) {
   let body;
@@ -159,8 +171,12 @@ async function handleSend(req, res) {
 function serveStatic(req, res) {
   let urlPath = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (urlPath === '/') urlPath = '/index.html';
-  const filePath = path.normalize(path.join(PUBLIC_DIR, urlPath));
+  let filePath = path.normalize(path.join(PUBLIC_DIR, urlPath));
   if (!filePath.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end('Forbidden'); }
+  // /scanwa  ->  /scanwa/index.html
+  if (!path.extname(filePath) && fs.existsSync(path.join(filePath, 'index.html'))) {
+    filePath = path.join(filePath, 'index.html');
+  }
   fs.readFile(filePath, (err, data) => {
     if (err) { res.writeHead(404); return res.end('Not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
@@ -170,9 +186,26 @@ function serveStatic(req, res) {
 
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/send') return handleSend(req, res);
-  if (req.method === 'GET' && req.url === '/api/health') return sendJson(res, 200, { ok: true, provider: PROVIDER });
+
+  if (req.method === 'GET' && req.url === '/api/health') {
+    return sendJson(res, 200, { ok: true, provider: PROVIDER, wa: waWeb ? waWeb.getStatus().state : null });
+  }
+
+  // Status koneksi WhatsApp Web (dipolling halaman /scanwa dan layar kirim)
+  if (req.method === 'GET' && req.url === '/api/wa/status') {
+    if (!waWeb) return sendJson(res, 200, { enabled: false, provider: PROVIDER });
+    return sendJson(res, 200, { enabled: true, provider: PROVIDER, ...waWeb.getStatus() });
+  }
+
+  if (req.method === 'POST' && req.url === '/api/wa/logout') {
+    if (!waWeb) return sendJson(res, 400, { ok: false, error: 'WA_PROVIDER bukan "web"' });
+    waWeb.logout().catch(() => {});
+    return sendJson(res, 200, { ok: true });
+  }
+
   if (req.method === 'GET') return serveStatic(req, res);
   res.writeHead(405); res.end();
 }).listen(PORT, () => {
   console.log(`📸 Photobooth jalan di http://localhost:${PORT}  (provider WA: ${PROVIDER})`);
+  if (PROVIDER === 'web') console.log(`🔗 Scan QR WhatsApp di http://localhost:${PORT}/scanwa`);
 });

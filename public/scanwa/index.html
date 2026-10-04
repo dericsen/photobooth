@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sambungkan WhatsApp — Photobooth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="scanwa.css" />
+</head>
+<body class="scan-body">
+  <main class="scan-card">
+    <h1 class="title small">💬 Sambungkan WhatsApp</h1>
+    <p class="subtitle" id="state-text">Memuat...</p>
+
+    <div id="qr-box" class="qr-box hidden">
+      <img id="qr-img" alt="QR code WhatsApp" />
+      <div id="qr-expired" class="qr-expired hidden">
+        <span>QR kedaluwarsa</span>
+        <small>menyiapkan QR baru...</small>
+      </div>
+    </div>
+
+    <div id="spinner" class="scan-spinner">⏳</div>
+
+    <div id="connected-box" class="connected-box hidden">
+      <div class="big-emoji">✅</div>
+      <p class="connected-name" id="connected-name"></p>
+      <p class="subtitle">Foto photobooth akan dikirim dari nomor ini.</p>
+    </div>
+
+    <p id="error-text" class="error"></p>
+
+    <ol class="steps" id="steps">
+      <li>Buka <b>WhatsApp</b> di HP yang akan dipakai sebagai pengirim.</li>
+      <li>Ketuk <b>Titik tiga</b> (Android) atau <b>Pengaturan</b> (iPhone) → <b>Perangkat tertaut</b>.</li>
+      <li>Ketuk <b>Tautkan perangkat</b>, lalu arahkan kamera ke QR di atas.</li>
+    </ol>
+
+    <div class="scan-actions">
+      <a class="btn ghost" href="/">← Ke photobooth</a>
+      <button id="btn-logout" class="btn ghost hidden">Putuskan sambungan</button>
+    </div>
+
+    <p class="note">Sesi login disimpan di folder <code>wa-auth/</code>, jadi tidak perlu scan ulang setiap kali server dinyalakan.</p>
+  </main>
+
+  <script src="scanwa.js"></script>
+</body>
+</html>
