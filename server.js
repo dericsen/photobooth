@@ -14,7 +14,7 @@ const DEFAULT_CC = process.env.DEFAULT_COUNTRY_CODE || '62';
 const CAPTION = process.env.WA_CAPTION || 'Terima kasih sudah mampir ke photobooth kami! 📸✨';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const PHOTO_DIR = path.join(__dirname, 'photos');
-const MAX_BODY = 25 * 1024 * 1024;
+const MAX_BODY = 80 * 1024 * 1024; // cukup untuk 6 foto sekaligus
 
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
 
@@ -57,6 +57,27 @@ function readBody(req) {
 function timestamp() {
   const d = new Date(); const z = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+}
+
+// Hanya izinkan huruf/angka/dash agar tidak bisa keluar dari folder photos/
+function safeSessionId(raw) {
+  const s = String(raw || '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 40);
+  return s || timestamp();
+}
+
+function sessionDir(sessionId) {
+  const dir = path.join(PHOTO_DIR, safeSessionId(sessionId));
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function decodeJpegDataUrl(dataUrl) {
+  const m = /^data:image\/jpe?g;base64,(.+)$/.exec(String(dataUrl || ''));
+  return m ? Buffer.from(m[1], 'base64') : null;
+}
+
+function appendLog(entry) {
+  fs.appendFileSync(path.join(PHOTO_DIR, 'log.jsonl'), JSON.stringify(entry) + '\n');
 }
 
 // ---------- WhatsApp providers ----------
@@ -140,31 +161,78 @@ if (PROVIDER === 'web') {
 }
 
 // ---------- Handlers ----------
+async function parseJsonBody(req, res) {
+  try { return JSON.parse((await readBody(req)).toString('utf8')); }
+  catch (e) { sendJson(res, 400, { ok: false, error: e.message || 'Body tidak valid' }); return null; }
+}
+
+// Simpan otomatis ke folder lokal: photos/<sessionId>/
+// shots = semua jepretan mentah (termasuk yang tidak dipakai), strip = hasil akhir
+async function handleSave(req, res) {
+  const body = await parseJsonBody(req, res);
+  if (!body) return;
+
+  const sessionId = safeSessionId(body.sessionId);
+  const dir = sessionDir(sessionId);
+  const saved = [];
+
+  if (Array.isArray(body.shots)) {
+    body.shots.forEach((d, i) => {
+      const buf = decodeJpegDataUrl(d);
+      if (!buf) return;
+      const name = `shot-${String(i + 1).padStart(2, '0')}.jpg`;
+      fs.writeFileSync(path.join(dir, name), buf);
+      saved.push(name);
+    });
+  }
+
+  if (body.strip) {
+    const buf = decodeJpegDataUrl(body.strip);
+    if (buf) {
+      fs.writeFileSync(path.join(dir, 'strip.jpg'), buf);
+      saved.push('strip.jpg');
+    }
+  }
+
+  if (!saved.length) return sendJson(res, 400, { ok: false, error: 'Tidak ada foto yang bisa disimpan' });
+
+  appendLog({
+    time: new Date().toISOString(), event: 'save', session: sessionId,
+    frame: body.frameId || null, picked: body.picked || null, files: saved,
+  });
+  console.log(`[save] ${sessionId}: ${saved.join(', ')}`);
+  sendJson(res, 200, { ok: true, sessionId, saved, dir: path.relative(__dirname, dir) });
+}
+
 async function handleSend(req, res) {
-  let body;
-  try { body = JSON.parse((await readBody(req)).toString('utf8')); }
-  catch (e) { return sendJson(res, 400, { ok: false, error: e.message || 'Body tidak valid' }); }
+  const body = await parseJsonBody(req, res);
+  if (!body) return;
 
   const phone = normalizePhone(body.phone);
   if (!phone) return sendJson(res, 400, { ok: false, error: 'Nomor WhatsApp tidak valid' });
 
-  const m = /^data:image\/jpeg;base64,(.+)$/.exec(body.image || '');
-  if (!m) return sendJson(res, 400, { ok: false, error: 'Foto tidak valid' });
-  const buffer = Buffer.from(m[1], 'base64');
+  const buffer = decodeJpegDataUrl(body.image);
+  if (!buffer) return sendJson(res, 400, { ok: false, error: 'Foto tidak valid' });
 
-  const filename = `${timestamp()}-${phone}.jpg`;
-  const file = path.join(PHOTO_DIR, filename);
+  // Strip selalu disimpan dulu, jadi kalau pengiriman gagal fotonya tetap ada
+  const sessionId = safeSessionId(body.sessionId);
+  const dir = sessionDir(sessionId);
+  const filename = `strip-${phone}.jpg`;
+  const file = path.join(dir, filename);
   fs.writeFileSync(file, buffer);
 
-  const log = { time: new Date().toISOString(), phone, file: filename, frame: body.frameId || null, provider: PROVIDER };
+  const log = {
+    time: new Date().toISOString(), event: 'send', session: sessionId, phone,
+    file: path.join(sessionId, filename), frame: body.frameId || null, provider: PROVIDER,
+  };
   try {
     await providers[PROVIDER]({ phone, buffer, filename, file });
-    fs.appendFileSync(path.join(PHOTO_DIR, 'log.jsonl'), JSON.stringify({ ...log, status: 'sent' }) + '\n');
+    appendLog({ ...log, status: 'sent' });
     sendJson(res, 200, { ok: true, phone });
   } catch (e) {
     console.error('[send error]', e.message);
-    fs.appendFileSync(path.join(PHOTO_DIR, 'log.jsonl'), JSON.stringify({ ...log, status: 'failed', error: e.message }) + '\n');
-    sendJson(res, 502, { ok: false, error: e.message, savedAs: filename });
+    appendLog({ ...log, status: 'failed', error: e.message });
+    sendJson(res, 502, { ok: false, error: e.message, savedAs: log.file });
   }
 }
 
@@ -186,6 +254,7 @@ function serveStatic(req, res) {
 
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/send') return handleSend(req, res);
+  if (req.method === 'POST' && req.url === '/api/save') return handleSave(req, res);
 
   if (req.method === 'GET' && req.url === '/api/health') {
     return sendJson(res, 200, { ok: true, provider: PROVIDER, wa: waWeb ? waWeb.getStatus().state : null });

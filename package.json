@@ -5,7 +5,8 @@
   "description": "Photobooth web dengan frame strip dan kirim hasil ke WhatsApp",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test-detect.js && node test-compose.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.22",

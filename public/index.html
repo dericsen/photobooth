@@ -32,29 +32,49 @@
           <div id="flash" class="flash"></div>
           <div id="shot-label" class="shot-label"></div>
         </div>
+        <div id="shot-tray" class="shot-tray"></div>
         <div class="shoot-actions">
           <button id="btn-back-home" class="btn ghost">← Ganti frame</button>
           <button id="btn-start" class="btn primary big">Mulai Foto!</button>
         </div>
       </div>
-      <div class="strip-preview"><canvas id="live-strip"></canvas></div>
     </div>
   </section>
 
-  <!-- 3. REVIEW -->
+  <!-- 3. PILIH FOTO YANG DIPAKAI -->
+  <section id="screen-select" class="screen">
+    <h2 id="select-title" class="title small">Pilih 4 foto terbaik</h2>
+    <p id="select-hint" class="subtitle"></p>
+    <div class="select-layout">
+      <div>
+        <div id="select-grid" class="select-grid"></div>
+        <p id="select-count" class="select-count"></p>
+        <p id="save-note" class="error"></p>
+      </div>
+      <div class="select-side">
+        <canvas id="select-strip" class="select-strip"></canvas>
+        <button id="btn-use" class="btn primary big" disabled>Pakai foto ini →</button>
+        <button id="btn-clear-pick" class="btn ghost">Hapus pilihan</button>
+        <button id="btn-reshoot" class="btn ghost">↺ Foto ulang semua</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. REVIEW -->
   <section id="screen-review" class="screen">
     <h2 class="title small">Hasilnya lucu banget! ✨</h2>
     <div class="review-layout">
       <img id="result-img" class="result-img" alt="Hasil photobooth" />
       <div class="review-actions">
         <button id="btn-continue" class="btn primary big">Kirim ke WhatsApp 💬</button>
+        <button id="btn-back-select" class="btn ghost">← Ganti pilihan foto</button>
         <button id="btn-retake" class="btn ghost">↺ Foto ulang</button>
         <a id="btn-download" class="btn ghost" download="photobooth.jpg">⬇ Simpan</a>
       </div>
     </div>
   </section>
 
-  <!-- 4. INPUT NOMOR -->
+  <!-- 5. INPUT NOMOR -->
   <section id="screen-phone" class="screen">
     <div class="phone-layout">
       <img id="phone-thumb" class="phone-thumb" alt="" />
@@ -80,7 +100,7 @@
     </div>
   </section>
 
-  <!-- 5. MENGIRIM / SELESAI -->
+  <!-- 6. MENGIRIM / SELESAI -->
   <section id="screen-done" class="screen">
     <div class="done-card">
       <div id="done-icon" class="done-icon">⏳</div>
