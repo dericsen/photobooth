@@ -1,12 +1,12 @@
 # 📸 Photobooth → WhatsApp
 
-Photobooth berbasis web: pilih frame → **6 jepretan** otomatis (hitung mundur **8 detik**) → **pilih 4 foto terbaik** → hasil strip → masukkan nomor WA → foto langsung terkirim. Semua foto otomatis tersimpan di komputer.
+Photobooth berbasis web: pilih frame → **6 jepretan** otomatis → **pilih 4 foto terbaik** → hasil strip → masukkan nomor WA → foto langsung terkirim. Semua foto otomatis tersimpan di komputer.
 
 Pengiriman memakai **WhatsApp Web**: login sekali dengan scan QR, gratis tanpa API berbayar. Butuh **Node.js 20.12+**.
 
 ## Cara pakai
 
-1. Simpan 2 gambar frame ke `public/frames/frame1.png` dan `public/frames/frame2.png`.
+1. Simpan 3 gambar frame ke `public/frames/` sebagai `frame1.png`, `frame2.png`, dan `frame3.png`.
 2. `npm install`
 3. `cp .env.example .env` (bawaannya sudah `WA_PROVIDER=web`, tinggal pakai).
 4. `npm start`
@@ -20,12 +20,12 @@ Sesi login disimpan di folder `wa-auth/`, jadi **tidak perlu scan ulang** setiap
 
 ## Alur untuk tamu
 
-1. **Pilih frame** — 2 pilihan.
-2. **Ambil foto** — 6 jepretan, tiap jepretan diawali hitung mundur 8 detik (bunyi hanya 3 detik terakhir). Jepretan yang sudah diambil muncul sebagai deretan thumbnail di bawah kamera.
+1. **Pilih frame** — 3 pilihan: Good Vibes, Cute Pastel, Playful.
+2. **Ambil foto** — 6 jepretan berturut-turut. Foto pertama diberi hitung mundur **8 detik** untuk bersiap, foto ke-2 sampai ke-6 masing-masing **4 detik** (bunyi hanya 3 detik terakhir). Jepretan yang sudah diambil muncul sebagai deretan thumbnail di bawah kamera.
 3. **Pilih foto** — 6 foto ditampilkan, ketuk untuk memilih 4. Angka di foto menunjukkan urutannya di strip, dan pratinjau strip ikut berubah langsung. 2 foto yang tidak dipilih tetap tersimpan di komputer.
 4. **Review** → **masukkan nomor** (ada tombol angka di layar) → **terkirim**.
 
-Jumlah jepretan dan lama hitung mundur bisa diubah di `public/config.js` (`totalShots`, `countdownSeconds`).
+Jumlah jepretan dan lama hitung mundur bisa diubah di `public/config.js` (`totalShots`, `countdownFirst`, `countdownNext`). Total satu sesi sekitar 37 detik.
 
 ## Semua foto otomatis tersimpan
 
@@ -59,7 +59,7 @@ Kalau jumlah kotak yang terdeteksi tidak sesuai `slotCount`, kartu frame di laya
 
 `slots.json` ikut masuk Git supaya kalibrasimu tidak hilang saat repo di-clone lagi.
 
-Jalankan `npm test` untuk menguji deteksi dan komposisi strip tanpa perlu browser. Pengujiannya meniru kondisi nyata yang pernah membuat deteksi gagal: interior bernuansa warna, interior sewarna latar dengan celah di garis frame, dan sticker putih yang menimpa kotak.
+Jalankan `npm test` untuk menguji tanpa perlu browser: deteksi kotak, komposisi strip, dan urutan hitung mundur. Pengujian deteksinya meniru kondisi nyata yang pernah membuat deteksi gagal: interior bernuansa warna, interior sewarna latar dengan celah di garis frame, dan sticker putih yang menimpa kotak.
 
 ## Halaman scan QR: `/scanwa`
 

@@ -144,6 +144,11 @@
     $('#camera-box').style.aspectRatio = `${shotAspect()}`;
     $('#camera-box').classList.toggle('mirror', !!CFG.mirror);
     $('#save-note').textContent = '';
+    const first = CFG.countdownFirst ?? CFG.countdownSeconds ?? 8;
+    const next = CFG.countdownNext ?? CFG.countdownSeconds ?? 4;
+    $('#shoot-hint').textContent =
+      `${CFG.totalShots} foto berturut-turut — ${first} detik untuk bersiap, lalu ${next} detik tiap foto. ` +
+      `Nanti kamu pilih ${frame.slots.length} yang terbaik.`;
     renderShotTray();
     show('shoot');
     try {
@@ -165,9 +170,14 @@
 
     const total = CFG.totalShots;
     const cd = $('#countdown');
+    // Foto pertama diberi waktu lebih lama untuk bersiap, sisanya lebih cepat
+    const first = CFG.countdownFirst ?? CFG.countdownSeconds ?? 8;
+    const next = CFG.countdownNext ?? CFG.countdownSeconds ?? 4;
     for (let i = 0; i < total; i++) {
-      $('#shot-label').textContent = `Foto ${i + 1} dari ${total}`;
-      for (let n = CFG.countdownSeconds; n > 0; n--) {
+      $('#shot-label').textContent = i === 0
+        ? `Foto 1 dari ${total} — siap-siap ya!`
+        : `Foto ${i + 1} dari ${total}`;
+      for (let n = i === 0 ? first : next; n > 0; n--) {
         cd.textContent = n;
         cd.classList.remove('tick'); void cd.offsetWidth; cd.classList.add('tick');
         if (n <= 3) beep(660, 0.1);          // bunyi hanya 3 detik terakhir

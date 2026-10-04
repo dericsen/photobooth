@@ -47,15 +47,16 @@ body {
 .btn:disabled { opacity: .5; pointer-events: none; }
 
 /* Home */
-.frame-list { display: flex; gap: 40px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+.frame-list { display: flex; gap: clamp(16px, 3vw, 40px); margin-top: 16px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
 .frame-card {
   background: #fff; border: 3px solid var(--ink); border-radius: var(--radius); padding: 14px; cursor: pointer;
   box-shadow: 0 8px 0 var(--ink); transition: transform .15s; display: flex; flex-direction: column; align-items: center; gap: 10px;
 }
 .frame-card:hover { transform: translateY(-4px) rotate(-1deg); }
 .frame-card:nth-child(2):hover { transform: translateY(-4px) rotate(1deg); }
-.frame-card img { height: min(62vh, 600px); border-radius: 10px; display: block; }
-.frame-card span { font-size: 22px; font-weight: 600; }
+.frame-card:nth-child(3):hover { transform: translateY(-4px) rotate(-1deg); }
+.frame-card img { height: min(58vh, 560px); max-width: 26vw; object-fit: contain; border-radius: 10px; display: block; }
+.frame-card span { font-size: clamp(17px, 2vw, 22px); font-weight: 600; }
 .frame-card.missing { padding: 30px; max-width: 300px; text-align: center; font-size: 16px; }
 .frame-warn { display: block; text-decoration: none; font-size: 14px; font-weight: 600; color: #b3304f; background: #ffe6ec; border-radius: 10px; padding: 4px 10px; max-width: 240px; text-align: center; }
 
@@ -84,6 +85,7 @@ body {
 }
 .shot-label:empty { display: none; }
 .shoot-actions { display: flex; gap: 16px; }
+.shoot-hint { margin: 0; font-size: clamp(14px, 1.6vw, 17px); opacity: .7; text-align: center; max-width: 620px; }
 
 /* Baris jepretan yang sudah diambil */
 .shot-tray { display: flex; gap: 10px; }

@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test-detect.js && node test-compose.js"
+    "test": "node test-detect.js && node test-compose.js && node test-countdown.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.22",

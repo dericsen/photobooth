@@ -3,7 +3,8 @@ window.PHOTOBOOTH_CONFIG = {
   eventName: 'Photobooth',
 
   totalShots: 6,            // jumlah jepretan
-  countdownSeconds: 8,      // hitung mundur sebelum tiap jepretan (detik)
+  countdownFirst: 8,        // hitung mundur sebelum foto PERTAMA (detik) — waktu bersiap
+  countdownNext: 4,         // hitung mundur sebelum foto ke-2 sampai terakhir (detik)
   pauseBetweenShots: 1500,  // ms jeda setelah jepret sebelum hitung mundur berikutnya
   idleResetSeconds: 15,     // layar "terkirim" kembali ke awal setelah sekian detik
 
@@ -22,5 +23,6 @@ window.PHOTOBOOTH_CONFIG = {
   frames: [
     { id: 'goodvibes', name: 'Good Vibes',  src: 'frames/frame1.png', slotCount: 4, slots: null },
     { id: 'cute',      name: 'Cute Pastel', src: 'frames/frame2.png', slotCount: 4, slots: null },
+    { id: 'playful',   name: 'Playful',     src: 'frames/frame3.png', slotCount: 4, slots: null },
   ],
 };
