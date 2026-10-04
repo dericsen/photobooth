@@ -1,11 +1,12 @@
 (() => {
   const CFG = window.PHOTOBOOTH_CONFIG;
+  const Lib = window.FrameLib;
   const $ = (s) => document.querySelector(s);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const DEBUG = new URLSearchParams(location.search).has('debug');
 
   const state = {
-    frames: [],        // { id, name, overlay, slots, width, height, detected }
+    frames: [],        // hasil Lib.processFrame
     frame: null,
     shots: [],         // semua jepretan (canvas), sebanyak CFG.totalShots
     thumbs: [],        // dataURL thumbnail tiap jepretan (dibuat sekali)
@@ -19,250 +20,6 @@
 
   function show(id) {
     document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === `screen-${id}`));
-  }
-
-  // ================= Deteksi area foto pada frame =================
-  function loadImage(src) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error(`Gagal memuat ${src}`));
-      img.src = src;
-    });
-  }
-
-  // Beberapa kombinasi ambang: dari putih bersih sampai putih bernuansa warna
-  // (interior frame sering sedikit kebiruan/pink, bukan putih murni).
-  const COMBOS = [
-    { bright: 244, sat: 10 },
-    { bright: 238, sat: 16 },
-    { bright: 232, sat: 24 },
-    { bright: 226, sat: 32 },
-    { bright: 218, sat: 40 },
-  ];
-
-  function findComponents(px, W, H, bright, sat) {
-    const N = W * H;
-    const light = new Uint8Array(N);
-    for (let i = 0; i < N; i++) {
-      const o = i * 4;
-      if (px[o + 3] < 200) { light[i] = 1; continue; } // transparan dianggap area foto
-      const r = px[o], g = px[o + 1], b = px[o + 2];
-      const mn = Math.min(r, g, b), mx = Math.max(r, g, b);
-      if (mn >= bright && mx - mn <= sat) light[i] = 1;
-    }
-
-    const label = new Int32Array(N).fill(-1);
-    const stack = new Int32Array(N);
-    const comps = [];
-    for (let start = 0; start < N; start++) {
-      if (label[start] !== -1 || !light[start]) continue;
-      const id = comps.length;
-      let sp = 0, size = 0, minX = W, minY = H, maxX = 0, maxY = 0;
-      stack[sp++] = start; label[start] = id;
-      while (sp) {
-        const i = stack[--sp]; size++;
-        const x = i % W, y = (i / W) | 0;
-        if (x < minX) minX = x; if (x > maxX) maxX = x;
-        if (y < minY) minY = y; if (y > maxY) maxY = y;
-        if (x > 0)     { const j = i - 1; if (label[j] === -1 && light[j]) { label[j] = id; stack[sp++] = j; } }
-        if (x < W - 1) { const j = i + 1; if (label[j] === -1 && light[j]) { label[j] = id; stack[sp++] = j; } }
-        if (y > 0)     { const j = i - W; if (label[j] === -1 && light[j]) { label[j] = id; stack[sp++] = j; } }
-        if (y < H - 1) { const j = i + W; if (label[j] === -1 && light[j]) { label[j] = id; stack[sp++] = j; } }
-      }
-      comps.push({ id, size, x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 });
-    }
-    return { label, comps };
-  }
-
-  // Rapikan bentuk slot: buang "tonjolan" tipis yang biasanya berasal dari sticker putih
-  // yang menempel/menimpa kotak foto, supaya sticker tetap tergambar di atas foto.
-  function refineRect(label, id, k, W) {
-    // Jangkauan kiri-kanan tiap baris milik komponen ini
-    const rows = [];
-    for (let y = k.y; y < k.y + k.h; y++) {
-      let lo = -1, hi = -1;
-      const row = y * W;
-      for (let x = k.x; x < k.x + k.w; x++) if (label[row + x] === id) { if (lo < 0) lo = x; hi = x; }
-      if (lo >= 0) rows.push({ y, lo, hi });
-    }
-    if (!rows.length) return null;
-    const median = (arr) => { const a = arr.slice().sort((p, q) => p - q); return a[a.length >> 1]; };
-
-    // 1) Tentukan batas kiri-kanan yang tahan outlier (median), supaya sticker
-    //    yang nempel di samping kotak tidak melebarkan area foto.
-    const medLo = median(rows.map((r) => r.lo));
-    const medHi = median(rows.map((r) => r.hi));
-    const tol = Math.max(6, (medHi - medLo) * 0.05);
-    const inside = rows.filter((r) => Math.abs(r.lo - medLo) <= tol && Math.abs(r.hi - medHi) <= tol);
-    const x0 = inside.length ? Math.min(...inside.map((r) => r.lo)) : medLo;
-    const x1 = inside.length ? Math.max(...inside.map((r) => r.hi)) : medHi;
-    const fullW = x1 - x0 + 1;
-    if (fullW < 8) return null;
-
-    // 2) Tentukan batas atas-bawah: baris berurutan terpanjang yang —setelah dipotong
-    //    ke batas kiri-kanan di atas— masih selebar kotak.
-    const clamped = rows.map((r) => {
-      const lo = Math.max(r.lo, x0), hi = Math.min(r.hi, x1);
-      return { y: r.y, lo, hi, w: hi - lo + 1 };
-    });
-    const ok = (r) => r.w >= fullW * 0.72;
-    let best = null, cur = null;
-    clamped.forEach((r, i) => {
-      const contiguous = cur && clamped[i - 1] && clamped[i - 1].y === r.y - 1;
-      if (ok(r)) {
-        if (!cur || !contiguous) cur = { from: i, to: i };
-        cur.to = i;
-        if (!best || cur.to - cur.from > best.to - best.from) best = cur;
-      } else cur = null;
-    });
-    if (!best) return null;
-
-    const kept = clamped.slice(best.from, best.to + 1);
-    return {
-      x: x0, y: kept[0].y, w: fullW, h: kept[kept.length - 1].y - kept[0].y + 1,
-      rows: kept, size: kept.reduce((s, r) => s + r.w, 0),
-    };
-  }
-
-  // Saring komponen yang bentuknya masuk akal sebagai kotak foto
-  function filterSlots(comps, W, H) {
-    const N = W * H;
-    return comps.filter((k) => {
-      if (k.size < N * 0.008) return false;                      // terlalu kecil (sticker)
-      if (k.x <= 0 || k.y <= 0 || k.x + k.w >= W || k.y + k.h >= H) return false; // menyentuh tepi = latar belakang
-      if (k.size / (k.w * k.h) < 0.55) return false;             // tidak padat = bukan kotak
-      if (k.w < W * 0.25 || k.w > W * 0.96) return false;
-      if (k.h < H * 0.04 || k.h > H * 0.45) return false;
-      const ar = k.w / k.h;
-      if (ar < 0.5 || ar > 4) return false;
-      return true;
-    });
-  }
-
-  function detectSlots(px, W, H, want) {
-    let best = null;
-    for (const c of COMBOS) {
-      const { label, comps } = findComponents(px, W, H, c.bright, c.sat);
-      let picked = filterSlots(comps, W, H).sort((a, b) => b.size - a.size);
-      if (want && picked.length > want) picked = picked.slice(0, want);
-      picked.sort((a, b) => a.y - b.y);
-      const result = { label, picked, combo: c };
-      if (!best || picked.length > best.picked.length) best = result;
-      if (want && picked.length === want) return result; // sudah pas, berhenti
-    }
-    return best;
-  }
-
-  function processFrame(def, img) {
-    const scale = Math.min(1, CFG.maxOutputWidth / img.naturalWidth);
-    const W = Math.round(img.naturalWidth * scale);
-    const H = Math.round(img.naturalHeight * scale);
-    const c = document.createElement('canvas');
-    c.width = W; c.height = H;
-    const ctx = c.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(img, 0, 0, W, H);
-    const imgData = ctx.getImageData(0, 0, W, H);
-    const px = imgData.data;
-    const N = W * H;
-    const want = def.slotCount || 4;
-
-    const mask = new Uint8Array(N);
-    let slots = [];
-    let detected = true;
-
-    if (Array.isArray(def.slots) && def.slots.length) {
-      // Slot manual dari config.js
-      slots = def.slots.map((s) => ({
-        x: Math.round(s.x * W), y: Math.round(s.y * H), w: Math.round(s.w * W), h: Math.round(s.h * H),
-      }));
-      for (const s of slots) {
-        for (let y = Math.max(0, s.y); y < Math.min(H, s.y + s.h); y++) {
-          for (let x = Math.max(0, s.x); x < Math.min(W, s.x + s.w); x++) mask[y * W + x] = 1;
-        }
-      }
-    } else {
-      const { label, picked } = detectSlots(px, W, H, want);
-      detected = picked.length === want;
-      if (!detected) console.warn(`[${def.id}] terdeteksi ${picked.length} slot, seharusnya ${want}. Isi "slots" manual di config.js.`);
-
-      // Isi mask per baris mengikuti tepi bergelombang, dan tutup lubang di dalam slot
-      // (gradien/tekstur) tanpa ikut menghapus sticker yang menimpa kotak.
-      for (const k of picked) {
-        const rect = refineRect(label, k.id, k, W);
-        if (!rect) continue;
-        for (const r of rect.rows) {
-          const lo = Math.max(r.lo, rect.x), hi = Math.min(r.hi, rect.x + rect.w - 1);
-          const row = r.y * W;
-          for (let x = lo; x <= hi; x++) mask[row + x] = 1;
-        }
-        slots.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
-      }
-      slots.sort((a, b) => a.y - b.y);
-      detected = slots.length === want;
-    }
-
-    // Lebarkan sedikit supaya tepi antialias putih tidak tersisa sebagai garis
-    const R = Math.max(2, Math.round(W / 500));
-    const dil = mask.slice();
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (!mask[y * W + x]) continue;
-      const onEdge = (x > 0 && !mask[y * W + x - 1]) || (x < W - 1 && !mask[y * W + x + 1]) ||
-        (y > 0 && !mask[(y - 1) * W + x]) || (y < H - 1 && !mask[(y + 1) * W + x]);
-      if (!onEdge) continue;
-      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-        const xx = x + dx, yy = y + dy;
-        if (xx >= 0 && yy >= 0 && xx < W && yy < H && dx * dx + dy * dy <= R * R) {
-          const j = yy * W + xx;
-          const mn = Math.min(px[j * 4], px[j * 4 + 1], px[j * 4 + 2]);
-          if (mn > 165) dil[j] = 1; // hanya piksel terang (tepi), bukan garis frame berwarna
-        }
-      }
-    }
-    for (let i = 0; i < N; i++) if (dil[i]) px[i * 4 + 3] = 0;
-    ctx.putImageData(imgData, 0, 0);
-
-    const pad = R + 2;
-    const photoRects = slots.map((s) => ({ x: s.x - pad, y: s.y - pad, w: s.w + pad * 2, h: s.h + pad * 2 }));
-
-    return { id: def.id, name: def.name, src: def.src, overlay: c, slots: photoRects, width: W, height: H, detected, want };
-  }
-
-  // ================= Komposisi strip =================
-  function drawCover(ctx, src, sw, sh, r) {
-    const s = Math.max(r.w / sw, r.h / sh);
-    const w = sw * s, h = sh * s;
-    ctx.drawImage(src, r.x + (r.w - w) / 2, r.y + (r.h - h) / 2, w, h);
-  }
-
-  // shotsForSlots: array sepanjang slots, isinya canvas atau null.
-  // scale < 1 dipakai untuk pratinjau supaya cepat.
-  function composeStrip(canvas, frame, shotsForSlots, scale = 1) {
-    canvas.width = Math.round(frame.width * scale);
-    canvas.height = Math.round(frame.height * scale);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    frame.slots.forEach((r0, i) => {
-      const r = scale === 1 ? r0 : { x: r0.x * scale, y: r0.y * scale, w: r0.w * scale, h: r0.h * scale };
-      const shot = shotsForSlots[i];
-      if (shot) {
-        drawCover(ctx, shot, shot.width, shot.height, r);
-      } else {
-        ctx.fillStyle = '#f4f0f8'; ctx.fillRect(r.x, r.y, r.w, r.h);
-        ctx.fillStyle = '#cfc5dd';
-        ctx.font = `bold ${Math.round(r.h * 0.32)}px Fredoka, sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(String(i + 1), r.x + r.w / 2, r.y + r.h / 2);
-      }
-    });
-    ctx.drawImage(frame.overlay, 0, 0, canvas.width, canvas.height);
-  }
-
-  function pickedCanvases() {
-    return state.frame.slots.map((_, i) => {
-      const idx = state.picked[i];
-      return idx === undefined ? null : state.shots[idx];
-    });
   }
 
   // ================= Kamera =================
@@ -291,15 +48,6 @@
     return s.reduce((a, r) => a + r.w / r.h, 0) / s.length;
   }
 
-  // Thumbnail dibuat sekali saja, supaya layar pilih foto tetap responsif saat diketuk
-  function makeThumb(shot, width = 420) {
-    const c = document.createElement('canvas');
-    c.width = width;
-    c.height = Math.round(width * shot.height / shot.width);
-    c.getContext('2d').drawImage(shot, 0, 0, c.width, c.height);
-    return c.toDataURL('image/jpeg', 0.72);
-  }
-
   function captureShot() {
     const v = $('#video');
     const ar = shotAspect();
@@ -310,8 +58,24 @@
     c.width = targetW; c.height = targetH;
     const ctx = c.getContext('2d');
     if (CFG.mirror) { ctx.translate(targetW, 0); ctx.scale(-1, 1); }
-    drawCover(ctx, v, v.videoWidth, v.videoHeight, { x: 0, y: 0, w: targetW, h: targetH });
+    Lib.drawCover(ctx, v, v.videoWidth, v.videoHeight, { x: 0, y: 0, w: targetW, h: targetH });
     return c;
+  }
+
+  // Thumbnail dibuat sekali saja, supaya layar pilih foto tetap responsif saat diketuk
+  function makeThumb(shot, width = 420) {
+    const c = document.createElement('canvas');
+    c.width = width;
+    c.height = Math.round(width * shot.height / shot.width);
+    c.getContext('2d').drawImage(shot, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.72);
+  }
+
+  function pickedCanvases() {
+    return state.frame.slots.map((_, i) => {
+      const idx = state.picked[i];
+      return idx === undefined ? null : state.shots[idx];
+    });
   }
 
   // ================= Bunyi =================
@@ -341,7 +105,7 @@
       });
       const d = await r.json();
       if (!d.ok) throw new Error(d.error || 'gagal menyimpan');
-      console.log('[save]', d.saved);
+      console.log('[save]', d.dir, d.saved.join(', '));
       return d;
     } catch (e) {
       console.error('[save] gagal:', e.message);
@@ -356,7 +120,7 @@
     for (let i = 0; i < CFG.totalShots; i++) {
       const box = document.createElement('div');
       box.className = 'tray-item';
-      if (state.shots[i]) {
+      if (state.thumbs[i]) {
         const im = document.createElement('img');
         im.src = state.thumbs[i];
         box.appendChild(im);
@@ -459,7 +223,7 @@
     $('#select-hint').textContent = n === need
       ? 'Mantap! Nomor di foto menunjukkan urutannya di strip.'
       : `Ketuk foto untuk memilih. ${need - n} lagi.`;
-    composeStrip($('#select-strip'), state.frame, pickedCanvases(), 0.45);
+    Lib.composeStrip($('#select-strip'), state.frame, pickedCanvases(), 0.45);
   }
 
   function togglePick(idx) {
@@ -476,7 +240,7 @@
 
   function finishSelect() {
     const out = document.createElement('canvas');
-    composeStrip(out, state.frame, pickedCanvases());
+    Lib.composeStrip(out, state.frame, pickedCanvases(), 1);
     state.resultDataUrl = out.toDataURL('image/jpeg', CFG.jpegQuality);
     $('#result-img').src = state.resultDataUrl;
     $('#phone-thumb').src = state.resultDataUrl;
@@ -547,7 +311,8 @@
 
   function resetAll() {
     clearInterval(state.resetTimer);
-    state.shots = []; state.thumbs = []; state.picked = []; state.resultDataUrl = null; state.frame = null; state.sessionId = null;
+    state.shots = []; state.thumbs = []; state.picked = [];
+    state.resultDataUrl = null; state.frame = null; state.sessionId = null;
     $('#phone-input').value = '';
     stopCamera();
     show('home');
@@ -606,26 +371,25 @@
 
   function showDebug(frames) {
     const c = $('#debug-canvas'); c.classList.remove('hidden');
-    const gap = 20;
+    const gap = 24;
     c.width = frames.reduce((s, f) => s + f.width + gap, 0);
-    c.height = Math.max(...frames.map((f) => f.height));
+    c.height = Math.max(...frames.map((f) => f.height)) + 40;
     const ctx = c.getContext('2d');
     ctx.fillStyle = '#ff00ff'; ctx.fillRect(0, 0, c.width, c.height); // magenta = area foto
     let x = 0;
     for (const f of frames) {
-      ctx.drawImage(f.overlay, x, 0);
+      ctx.drawImage(f.overlay, x, 40);
+      ctx.fillStyle = '#000'; ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`${f.id}: ${f.slots.length}/${f.want} ${f.manual ? '(manual)' : '(otomatis)'}`, x + 8, 30);
       ctx.strokeStyle = f.detected ? '#0033cc' : '#cc0000'; ctx.lineWidth = 4;
       f.slots.forEach((s, i) => {
-        ctx.strokeRect(x + s.x, s.y, s.w, s.h);
+        ctx.strokeRect(x + s.x, s.y + 40, s.w, s.h);
         ctx.fillStyle = ctx.strokeStyle;
         ctx.font = 'bold 40px sans-serif';
-        ctx.fillText(i + 1, x + s.x + 10, s.y + 45);
+        ctx.fillText(i + 1, x + s.x + 10, s.y + 85);
       });
-      console.log(`[debug] ${f.id}: ${f.slots.length}/${f.want} slot. Nilai untuk config.js:`,
-        JSON.stringify(f.slots.map((s) => ({
-          x: +(s.x / f.width).toFixed(4), y: +(s.y / f.height).toFixed(4),
-          w: +(s.w / f.width).toFixed(4), h: +(s.h / f.height).toFixed(4),
-        }))));
+      console.log(`[debug] ${f.id}: ${f.slots.length}/${f.want} kotak ${f.manual ? '(manual)' : '(otomatis)'}. Nilai untuk config.js:`,
+        JSON.stringify(f.fractions));
       x += f.width + gap;
     }
     c.onclick = () => c.classList.add('hidden');
@@ -636,25 +400,48 @@
     document.title = CFG.eventName;
     bindEvents();
     watchWaStatus();
+
+    // Pengaturan kotak manual dari editor /slots (kalau ada)
+    let saved = {};
+    try { saved = await (await fetch('/api/slots', { cache: 'no-store' })).json(); } catch { /* abaikan */ }
+
     const list = $('#frame-list');
+    list.innerHTML = '<p class="subtitle">Menyiapkan frame...</p>';
+    const cards = [];
     for (const def of CFG.frames) {
       const card = document.createElement('div');
       card.className = 'frame-card';
       try {
-        const img = await loadImage(def.src);
-        const frame = processFrame(def, img);
+        const img = await Lib.loadImage(def.src);
+        const frame = Lib.processFrame(
+          { ...def, slots: saved[def.id]?.length ? saved[def.id] : def.slots },
+          img, { maxWidth: CFG.maxOutputWidth, detectWidth: 520 },
+        );
         state.frames.push(frame);
         const warn = frame.detected ? '' :
-          `<span class="frame-warn">⚠️ ${frame.slots.length}/${frame.want} kotak terdeteksi — cek /?debug=1</span>`;
+          `<a class="frame-warn" href="/slots">⚠️ ${frame.slots.length}/${frame.want} kotak terdeteksi — ketuk untuk mengatur manual</a>`;
         card.innerHTML = `<img src="${def.src}" alt=""><span>${def.name}</span>${warn}`;
-        if (frame.slots.length) card.onclick = () => { $('#home-error').textContent = ''; openShoot(frame); };
-        else card.onclick = () => { $('#home-error').textContent = `Frame "${def.name}" tidak ada kotak foto yang terdeteksi.`; };
+        if (frame.slots.length) {
+          card.onclick = (e) => {
+            if (e.target.closest('.frame-warn')) return; // biarkan tautan editor bekerja
+            $('#home-error').textContent = '';
+            openShoot(frame);
+          };
+        } else {
+          card.onclick = (e) => {
+            if (e.target.closest('.frame-warn')) return;
+            $('#home-error').innerHTML = `Frame "${def.name}" belum ada kotak foto. Atur manual di <a href="/slots">halaman /slots</a>.`;
+          };
+        }
       } catch {
         card.classList.add('missing');
         card.innerHTML = `⚠️ Frame <b>${def.name}</b> tidak ditemukan.<br>Simpan gambarnya di <code>public/${def.src}</code>`;
       }
-      list.appendChild(card);
+      cards.push(card);
     }
+    list.innerHTML = '';
+    cards.forEach((c) => list.appendChild(c));
+
     if (DEBUG && state.frames.length) showDebug(state.frames);
   }
 

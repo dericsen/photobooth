@@ -14,6 +14,7 @@ const DEFAULT_CC = process.env.DEFAULT_COUNTRY_CODE || '62';
 const CAPTION = process.env.WA_CAPTION || 'Terima kasih sudah mampir ke photobooth kami! 📸✨';
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const PHOTO_DIR = path.join(__dirname, 'photos');
+const SLOTS_FILE = path.join(__dirname, 'slots.json');
 const MAX_BODY = 80 * 1024 * 1024; // cukup untuk 6 foto sekaligus
 
 fs.mkdirSync(PHOTO_DIR, { recursive: true });
@@ -78,6 +79,27 @@ function decodeJpegDataUrl(dataUrl) {
 
 function appendLog(entry) {
   fs.appendFileSync(path.join(PHOTO_DIR, 'log.jsonl'), JSON.stringify(entry) + '\n');
+}
+
+// ---------- Pengaturan kotak foto (dari editor /slots) ----------
+function readSlots() {
+  try { return JSON.parse(fs.readFileSync(SLOTS_FILE, 'utf8')); } catch { return {}; }
+}
+
+// Terima hanya 4 angka pecahan 0..1 per kotak, abaikan sisanya
+function sanitizeSlots(raw) {
+  if (!Array.isArray(raw)) return null;
+  const out = [];
+  for (const s of raw.slice(0, 12)) {
+    const n = (v) => (typeof v === 'number' && isFinite(v) ? Math.min(1, Math.max(0, v)) : null);
+    const x = n(s?.x), y = n(s?.y);
+    if (x === null || y === null || n(s?.w) === null || n(s?.h) === null) continue;
+    // lebar/tinggi dipotong agar tidak melewati batas gambar, lalu dicek lagi
+    const w = Math.min(n(s.w), 1 - x), h = Math.min(n(s.h), 1 - y);
+    if (w <= 0.01 || h <= 0.01) continue;
+    out.push({ x, y, w, h });
+  }
+  return out.length ? out : null;
 }
 
 // ---------- WhatsApp providers ----------
@@ -204,6 +226,26 @@ async function handleSave(req, res) {
   sendJson(res, 200, { ok: true, sessionId, saved, dir: path.relative(__dirname, dir) });
 }
 
+async function handleSlots(req, res) {
+  const body = await parseJsonBody(req, res);
+  if (!body) return;
+
+  const frameId = String(body.frameId || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+  if (!frameId) return sendJson(res, 400, { ok: false, error: 'frameId tidak valid' });
+
+  const all = readSlots();
+  const slots = sanitizeSlots(body.slots);
+  if (slots) all[frameId] = slots; else delete all[frameId]; // slots null = kembali ke otomatis
+
+  try {
+    fs.writeFileSync(SLOTS_FILE, JSON.stringify(all, null, 2));
+  } catch (e) {
+    return sendJson(res, 500, { ok: false, error: `Gagal menulis slots.json: ${e.message}` });
+  }
+  console.log(`[slots] ${frameId}: ${slots ? slots.length + ' kotak disimpan' : 'kembali ke deteksi otomatis'}`);
+  sendJson(res, 200, { ok: true, frameId, slots: slots || null });
+}
+
 async function handleSend(req, res) {
   const body = await parseJsonBody(req, res);
   if (!body) return;
@@ -255,6 +297,10 @@ function serveStatic(req, res) {
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/api/send') return handleSend(req, res);
   if (req.method === 'POST' && req.url === '/api/save') return handleSave(req, res);
+
+  // Pengaturan kotak foto hasil editor /slots
+  if (req.method === 'GET' && req.url === '/api/slots') return sendJson(res, 200, readSlots());
+  if (req.method === 'POST' && req.url === '/api/slots') return handleSlots(req, res);
 
   if (req.method === 'GET' && req.url === '/api/health') {
     return sendJson(res, 200, { ok: true, provider: PROVIDER, wa: waWeb ? waWeb.getStatus().state : null });

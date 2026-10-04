@@ -1,12 +1,6 @@
 // Uji komposisi strip: foto harus digambar pas di kotaknya, baik ukuran penuh
 // maupun pratinjau yang diperkecil. Jalankan: node test-compose.js
-const fs = require('node:fs');
 const path = require('node:path');
-
-const src = fs.readFileSync(path.join(__dirname, 'public/app.js'), 'utf8');
-const s0 = src.indexOf('  function drawCover');
-const s1 = src.indexOf('  // ================= Kamera');
-if (s0 < 0 || s1 < 0) { console.error('Gagal menemukan blok komposisi di app.js'); process.exit(1); }
 
 const calls = [];
 const ctx = {
@@ -14,11 +8,13 @@ const ctx = {
   fillRect(x, y, w, h) { calls.push({ op: 'fillRect', x, y, w, h }); },
   fillText(t, x, y) { calls.push({ op: 'fillText', t, x, y }); },
   drawImage(img, x, y, w, h) { calls.push({ op: 'drawImage', img: img.tag || 'overlay', x, y, w, h }); },
-  save() {}, restore() {}, translate() {}, scale() {},
+  getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+  putImageData() {}, save() {}, restore() {}, translate() {}, scale() {},
 };
 const canvas = { width: 0, height: 0, getContext: () => ctx };
 global.document = { createElement: () => ({ getContext: () => ctx, width: 0, height: 0 }) };
-eval(src.slice(s0, s1));
+global.window = {};
+const { composeStrip } = require(path.join(__dirname, 'public/frame-lib.js'));
 
 // Frame 1000x3000 dengan 4 kotak, plus foto 800x600 (rasio 4:3)
 const frame = {
@@ -44,7 +40,6 @@ const draws = calls.filter((c) => c.op === 'drawImage');
 add('4 foto + 1 overlay digambar', draws.length === 5, `${draws.length} drawImage`);
 add('urutan foto sesuai slot', draws.slice(0, 4).map((d) => d.img).join('') === 'ABCD',
   draws.slice(0, 4).map((d) => d.img).join(''));
-// foto 4:3 ke kotak 400x300 (juga 4:3) -> harus pas tanpa terpotong
 add('foto pas di kotak 1', near(draws[0].x, 50) && near(draws[0].y, 100) && near(draws[0].w, 400) && near(draws[0].h, 300),
   `x=${draws[0].x} y=${draws[0].y} w=${draws[0].w} h=${draws[0].h}`);
 add('foto pas di kotak 4', near(draws[3].x, 50) && near(draws[3].y, 2200), `x=${draws[3].x} y=${draws[3].y}`);
@@ -83,5 +78,5 @@ for (const c of checks) {
   console.log(`${c.pass ? '✅' : '❌'} ${c.n}${c.d ? '  — ' + c.d : ''}`);
   if (!c.pass) fail++;
 }
-console.log(fail ? `\n${fail} pemeriksaan GAGAL` : '\nSemua pemeriksaan lulus');
+console.log(fail ? `\n${fail} pemeriksaan GAGAL` : `\nSemua ${checks.length} pemeriksaan lulus`);
 process.exit(fail ? 1 : 0);

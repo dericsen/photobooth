@@ -42,21 +42,33 @@ photos/
 
 Strip selalu disimpan **sebelum** dikirim, jadi kalau WhatsApp gagal fotonya tetap aman. Matikan dengan `autoSave: false` di `public/config.js`.
 
-## Area foto dideteksi otomatis
+## Area foto: otomatis, dan bisa diatur sendiri di `/slots`
 
 Kotak foto di dalam frame dideteksi otomatis, lalu foto ditaruh *di bawah* frame. Hasilnya, sticker yang menimpa frame (kucing, kelinci, kamera) tetap tampil di atas foto, dan tepi frame yang bergelombang tetap rapi.
 
-Deteksinya mencoba beberapa tingkat ambang warna, karena interior frame sering tidak putih murni (ada nuansa ungu/pink), lalu merapikan bentuknya supaya sticker putih yang menimpa kotak tidak ikut dianggap area foto.
+Deteksinya mencoba beberapa tingkat ambang warna (interior frame sering tidak putih murni, ada nuansa ungu/pink/krem), memakai erosi untuk memutus kebocoran tipis antara interior kotak dan latar belakang lewat celah di garis frame, lalu merapikan bentuknya supaya sticker putih yang menimpa kotak tidak ikut dianggap area foto.
 
-Kalau jumlah kotak yang terdeteksi tidak sesuai `slotCount`, kartu frame di layar awal menampilkan peringatan. Untuk memeriksa, buka **`http://localhost:3000/?debug=1`**: area magenta adalah tempat foto, kotak biru artinya deteksi lengkap, merah artinya kurang. Nilai koordinatnya juga dicetak di console browser, siap ditempel ke `slots` di `public/config.js` kalau mau diatur manual.
+**Kalau hasilnya masih meleset, atur sendiri di `http://localhost:3000/slots`:**
 
-Jalankan `npm test` untuk menguji deteksi dan komposisi strip tanpa perlu browser.
+- Geser kotak untuk memindahkan, tarik titik di pojok untuk mengubah ukuran, atau pakai tombol panah untuk menggeser halus (tahan Shift untuk mengubah ukuran, Alt untuk langkah sangat kecil).
+- Ada pratinjau langsung yang menandai area foto dengan warna magenta.
+- Tekan **Simpan** — hasilnya ditulis ke `slots.json` dan otomatis dipakai photobooth. Tidak perlu mengedit file apa pun.
+- Tombol **Kembali ke otomatis** menghapus pengaturan manual untuk frame itu.
+
+Kalau jumlah kotak yang terdeteksi tidak sesuai `slotCount`, kartu frame di layar awal menampilkan peringatan yang langsung menautkan ke editor. Untuk melihat detailnya, buka **`http://localhost:3000/?debug=1`**: area magenta adalah tempat foto, kotak biru artinya lengkap, merah artinya kurang.
+
+`slots.json` ikut masuk Git supaya kalibrasimu tidak hilang saat repo di-clone lagi.
+
+Jalankan `npm test` untuk menguji deteksi dan komposisi strip tanpa perlu browser. Pengujiannya meniru kondisi nyata yang pernah membuat deteksi gagal: interior bernuansa warna, interior sewarna latar dengan celah di garis frame, dan sticker putih yang menimpa kotak.
 
 ## Halaman scan QR: `/scanwa`
 
 | Alamat | Fungsi |
 |---|---|
-| `/scanwa` | Halaman QR + status koneksi, auto-refresh. Ada tombol "Putuskan sambungan" untuk ganti nomor pengirim. |
+| `/` | Photobooth (untuk tamu) |
+| `/scanwa` | Halaman QR + status koneksi WhatsApp, auto-refresh. Ada tombol "Putuskan sambungan" untuk ganti nomor pengirim. |
+| `/slots` | Editor kotak foto |
+| `/?debug=1` | Lihat hasil deteksi kotak |
 | `/api/wa/status` | Status koneksi dalam JSON: `qr`, `connecting`, `connected`, `logged_out`, `error`. |
 
 QR WhatsApp hanya berlaku sekitar 1 menit; server otomatis membuat yang baru dan halamannya ikut memperbarui sendiri. Kalau koneksi terputus, server menyambung ulang otomatis.

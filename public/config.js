@@ -14,9 +14,11 @@ window.PHOTOBOOTH_CONFIG = {
 
   // Frame. Taruh gambarnya di public/frames/.
   // slotCount = jumlah kotak foto yang seharusnya ada di frame (dipakai untuk mengecek deteksi).
-  // Area foto dideteksi OTOMATIS. Kalau hasil deteksi meleset, isi `slots` manual
-  // dalam pecahan 0..1: [{ x, y, w, h }, ...]
-  // Cek hasil deteksi di  http://localhost:3000/?debug=1
+  //
+  // Area foto dideteksi OTOMATIS. Kalau hasilnya meleset, paling gampang atur lewat
+  // editor visual di  http://localhost:3000/slots  (hasilnya tersimpan ke slots.json
+  // dan otomatis dipakai, tanpa perlu mengubah file ini).
+  // Bisa juga diisi di sini sebagai pecahan 0..1: slots: [{ x, y, w, h }, ...]
   frames: [
     { id: 'goodvibes', name: 'Good Vibes',  src: 'frames/frame1.png', slotCount: 4, slots: null },
     { id: 'cute',      name: 'Cute Pastel', src: 'frames/frame2.png', slotCount: 4, slots: null },

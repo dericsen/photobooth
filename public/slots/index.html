@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Atur Kotak Foto — Photobooth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="../style.css" />
+  <link rel="stylesheet" href="slots.css" />
+</head>
+<body class="editor-body">
+  <header class="editor-head">
+    <h1 class="title small">📐 Atur Kotak Foto</h1>
+    <div class="frame-tabs" id="frame-tabs"></div>
+    <a class="btn ghost small" href="/">← Ke photobooth</a>
+  </header>
+
+  <p class="editor-help">
+    Geser kotak untuk memindahkan, tarik titik di pojok untuk mengubah ukuran.
+    Pas-kan tiap kotak ke area putih di dalam frame. Lebih besar sedikit tidak masalah —
+    kelebihannya tertutup gambar frame. Bisa juga pakai tombol panah untuk menggeser halus.
+  </p>
+
+  <div class="editor-main">
+    <div class="stage-wrap">
+      <div id="stage" class="stage">
+        <img id="frame-img" alt="" />
+        <div id="rects"></div>
+      </div>
+    </div>
+
+    <aside class="editor-side">
+      <p id="status" class="editor-status"></p>
+
+      <div class="side-group">
+        <button id="btn-detect" class="btn ghost small">🔍 Deteksi ulang otomatis</button>
+        <button id="btn-add" class="btn ghost small">＋ Tambah kotak</button>
+        <button id="btn-del" class="btn ghost small" disabled>🗑 Hapus kotak terpilih</button>
+      </div>
+
+      <div class="side-group">
+        <button id="btn-save" class="btn primary">💾 Simpan</button>
+        <button id="btn-reset" class="btn ghost small">Kembali ke otomatis</button>
+      </div>
+
+      <p id="save-msg" class="editor-msg"></p>
+
+      <div class="side-group">
+        <h3 class="side-title">Pratinjau</h3>
+        <canvas id="preview" class="editor-preview"></canvas>
+        <label class="chk"><input type="checkbox" id="chk-holes" checked /> Tandai area foto</label>
+      </div>
+
+      <details class="side-details">
+        <summary>Nilai untuk config.js</summary>
+        <textarea id="json-out" readonly rows="8"></textarea>
+        <p class="note">Tidak perlu disalin kalau kamu menekan Simpan — nilainya sudah ditulis ke <code>slots.json</code>.</p>
+      </details>
+    </aside>
+  </div>
+
+  <script src="../config.js"></script>
+  <script src="../frame-lib.js"></script>
+  <script src="slots.js"></script>
+</body>
+</html>
