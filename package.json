@@ -1,0 +1,13 @@
+{
+  "name": "photobooth-wa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Photobooth web dengan frame strip dan kirim hasil ke WhatsApp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  }
+}

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Photobooth</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- 1. PILIH FRAME -->
+  <section id="screen-home" class="screen active">
+    <h1 class="title">📸 <span id="event-name">Photobooth</span></h1>
+    <p class="subtitle">Pilih frame favoritmu</p>
+    <div id="frame-list" class="frame-list"></div>
+    <p id="home-error" class="error"></p>
+  </section>
+
+  <!-- 2. AMBIL FOTO -->
+  <section id="screen-shoot" class="screen">
+    <div class="shoot-layout">
+      <div class="camera-wrap">
+        <div id="camera-box" class="camera-box">
+          <video id="video" autoplay playsinline muted></video>
+          <div id="countdown" class="countdown"></div>
+          <div id="flash" class="flash"></div>
+          <div id="shot-label" class="shot-label"></div>
+        </div>
+        <div class="shoot-actions">
+          <button id="btn-back-home" class="btn ghost">← Ganti frame</button>
+          <button id="btn-start" class="btn primary big">Mulai Foto!</button>
+        </div>
+      </div>
+      <div class="strip-preview"><canvas id="live-strip"></canvas></div>
+    </div>
+  </section>
+
+  <!-- 3. REVIEW -->
+  <section id="screen-review" class="screen">
+    <h2 class="title small">Hasilnya lucu banget! ✨</h2>
+    <div class="review-layout">
+      <img id="result-img" class="result-img" alt="Hasil photobooth" />
+      <div class="review-actions">
+        <button id="btn-continue" class="btn primary big">Kirim ke WhatsApp 💬</button>
+        <button id="btn-retake" class="btn ghost">↺ Foto ulang</button>
+        <a id="btn-download" class="btn ghost" download="photobooth.jpg">⬇ Simpan</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. INPUT NOMOR -->
+  <section id="screen-phone" class="screen">
+    <div class="phone-layout">
+      <img id="phone-thumb" class="phone-thumb" alt="" />
+      <div class="phone-card">
+        <h2 class="title small">Masukkan nomor WhatsApp</h2>
+        <p class="subtitle">Foto akan dikirim langsung ke WhatsApp kamu</p>
+        <div class="phone-input-wrap">
+          <span class="flag">🇮🇩</span>
+          <input id="phone-input" type="tel" inputmode="numeric" autocomplete="off" placeholder="08xx xxxx xxxx" />
+        </div>
+        <p id="phone-error" class="error"></p>
+        <div class="numpad" id="numpad">
+          <button>1</button><button>2</button><button>3</button>
+          <button>4</button><button>5</button><button>6</button>
+          <button>7</button><button>8</button><button>9</button>
+          <button data-k="clear">C</button><button>0</button><button data-k="del">⌫</button>
+        </div>
+        <div class="phone-actions">
+          <button id="btn-phone-back" class="btn ghost">← Kembali</button>
+          <button id="btn-send" class="btn primary big">Kirim 🚀</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. MENGIRIM / SELESAI -->
+  <section id="screen-done" class="screen">
+    <div class="done-card">
+      <div id="done-icon" class="done-icon">⏳</div>
+      <h2 id="done-title" class="title small">Mengirim foto...</h2>
+      <p id="done-text" class="subtitle"></p>
+      <div id="done-actions" class="done-actions hidden">
+        <button id="btn-retry" class="btn primary">Coba lagi</button>
+        <button id="btn-edit-phone" class="btn ghost">Ubah nomor</button>
+        <button id="btn-finish" class="btn ghost">Selesai</button>
+      </div>
+    </div>
+  </section>
+
+  <canvas id="debug-canvas" class="hidden"></canvas>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
